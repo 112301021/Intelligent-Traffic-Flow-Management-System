@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Traffic Simulation — Architecture Diagram</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Sora:wght@400;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: 'Sora', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 24px;
+  }
+
+  h1 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #7d8590;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #e6edf3;
+    margin-bottom: 48px;
+  }
+
+  .diagram-wrap {
+    width: 100%;
+    max-width: 900px;
+  }
+
+  svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 32px;
+    margin-top: 32px;
+    padding: 16px 24px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: #8b949e;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+
+<h1>System Architecture</h1>
+<h2>Traffic Intersection Simulation</h2>
+
+<div class="diagram-wrap">
+<svg viewBox="0 0 880 640" xmlns="http://www.w3.org/2000/svg" font-family="'JetBrains Mono', monospace">
+
+  <!-- Defs -->
+  <defs>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#388bfd"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#3fb950"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#d29922"/>
+    </marker>
+    <marker id="arrow-gray" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#484f58"/>
+    </marker>
+  </defs>
+
+  <!-- ── EXTERNAL LAYER ─────────────────────────────────────── -->
+
+  <!-- External layer background -->
+  <rect x="40" y="20" width="800" height="120" rx="10"
+        fill="#1c2128" stroke="#d29922" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="56" y="42" font-size="10" fill="#d29922" font-weight="600" letter-spacing="0.1em">EXTERNAL LAYER</text>
+
+  <!-- External optimizer box -->
+  <rect x="80" y="52" width="280" height="68" rx="6"
+        fill="#272e38" stroke="#d29922" stroke-width="1.5"/>
+  <text x="220" y="76" text-anchor="middle" font-size="11" fill="#e6edf3" font-weight="600">External Optimizer</text>
+  <text x="220" y="94" text-anchor="middle" font-size="9.5" fill="#8b949e">Python / ML agent / Manual input</text>
+  <text x="220" y="110" text-anchor="middle" font-size="9" fill="#d29922">outputs: wait_L · wait_R · wait_F</text>
+
+  <!-- Input.txt box -->
+  <rect x="430" y="52" width="360" height="68" rx="6"
+        fill="#272e38" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="610" y="73" text-anchor="middle" font-size="11" fill="#e6edf3" font-weight="600">config/Input.txt</text>
+  <text x="610" y="91" text-anchor="middle" font-size="9.5" fill="#8b949e">Plain text IPC interface</text>
+  <text x="610" y="107" text-anchor="middle" font-size="9" fill="#3fb950" font-family="'JetBrains Mono'" >L-R-F  →  3.5-2.0-4.0</text>
+
+  <!-- Arrow: Optimizer → Input.txt -->
+  <line x1="360" y1="86" x2="428" y2="86"
+        stroke="#d29922" stroke-width="1.5" marker-end="url(#arrow-orange)"/>
+  <text x="394" y="80" text-anchor="middle" font-size="8.5" fill="#d29922">writes</text>
+
+
+  <!-- ── UNITY SIMULATION LAYER ─────────────────────────────── -->
+
+  <!-- Unity layer background -->
+  <rect x="40" y="168" width="800" height="440" rx="10"
+        fill="#1c2128" stroke="#388bfd" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="56" y="190" font-size="10" fill="#388bfd" font-weight="600" letter-spacing="0.1em">UNITY SIMULATION LAYER</text>
+
+  <!-- ReadInput.cs -->
+  <rect x="80" y="202" width="210" height="64" rx="6"
+        fill="#1f2937" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="185" y="224" text-anchor="middle" font-size="11" fill="#3fb950" font-weight="700">ReadInput.cs</text>
+  <text x="185" y="240" text-anchor="middle" font-size="8.5" fill="#8b949e">File watcher</text>
+  <text x="185" y="254" text-anchor="middle" font-size="8.5" fill="#8b949e">polls GetLastWriteTime()</text>
+
+  <!-- TrafficLightManager.cs -->
+  <rect x="330" y="202" width="230" height="64" rx="6"
+        fill="#1f2937" stroke="#388bfd" stroke-width="1.5"/>
+  <text x="445" y="222" text-anchor="middle" font-size="11" fill="#388bfd" font-weight="700">TrafficLightManager.cs</text>
+  <text x="445" y="240" text-anchor="middle" font-size="8.5" fill="#8b949e">Round-robin signal controller</text>
+  <text x="445" y="254" text-anchor="middle" font-size="8.5" fill="#8b949e">SetDelay() from ReadInput</text>
+
+  <!-- TrafficLight.cs -->
+  <rect x="610" y="202" width="200" height="64" rx="6"
+        fill="#1f2937" stroke="#388bfd" stroke-width="1.5"/>
+  <text x="710" y="224" text-anchor="middle" font-size="11" fill="#388bfd" font-weight="700">TrafficLight.cs</text>
+  <text x="710" y="240" text-anchor="middle" font-size="8.5" fill="#8b949e">Per-lane state</text>
+  <text x="710" y="254" text-anchor="middle" font-size="8.5" fill="#8b949e">isRed / isGreen</text>
+
+  <!-- Arrows: top row -->
+  <line x1="290" y1="234" x2="328" y2="234"
+        stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+  <line x1="560" y1="234" x2="608" y2="234"
+        stroke="#388bfd" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+  <!-- ── LANE SIGNALS ──────────────────────────────────── -->
+  <!-- Lane signal boxes -->
+  <rect x="150" y="308" width="120" height="44" rx="5"
+        fill="#1a2332" stroke="#388bfd" stroke-width="1"/>
+  <text x="210" y="326" text-anchor="middle" font-size="9.5" fill="#e6edf3" font-weight="600">Left Lane</text>
+  <text x="210" y="342" text-anchor="middle" font-size="8.5" fill="#388bfd">trafficlights[1]</text>
+
+  <rect x="380" y="308" width="120" height="44" rx="5"
+        fill="#1a2332" stroke="#388bfd" stroke-width="1"/>
+  <text x="440" y="326" text-anchor="middle" font-size="9.5" fill="#e6edf3" font-weight="600">Right Lane</text>
+  <text x="440" y="342" text-anchor="middle" font-size="8.5" fill="#388bfd">trafficlights[0]</text>
+
+  <rect x="610" y="308" width="120" height="44" rx="5"
+        fill="#1a2332" stroke="#388bfd" stroke-width="1"/>
+  <text x="670" y="326" text-anchor="middle" font-size="9.5" fill="#e6edf3" font-weight="600">Front Lane</text>
+  <text x="670" y="342" text-anchor="middle" font-size="8.5" fill="#388bfd">trafficlights[2]</text>
+
+  <!-- Arrows from TrafficLightManager down to lanes -->
+  <line x1="390" y1="266" x2="250" y2="308"
+        stroke="#388bfd" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-blue)"/>
+  <line x1="445" y1="266" x2="440" y2="308"
+        stroke="#388bfd" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-blue)"/>
+  <line x1="500" y1="266" x2="640" y2="308"
+        stroke="#388bfd" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-blue)"/>
+
+  <!-- ── SPAWNING + MOVEMENT LAYER ─────────────────────── -->
+
+  <!-- ObjectPooler.cs -->
+  <rect x="80" y="400" width="200" height="64" rx="6"
+        fill="#1f2937" stroke="#bc8cff" stroke-width="1.5"/>
+  <text x="180" y="420" text-anchor="middle" font-size="11" fill="#bc8cff" font-weight="700">ObjectPooler.cs</text>
+  <text x="180" y="438" text-anchor="middle" font-size="8.5" fill="#8b949e">Dict&lt;string, Queue&lt;GO&gt;&gt;</text>
+  <text x="180" y="452" text-anchor="middle" font-size="8.5" fill="#8b949e">Lane capacity gating</text>
+
+  <!-- CarSpawner.cs -->
+  <rect x="330" y="400" width="200" height="64" rx="6"
+        fill="#1f2937" stroke="#bc8cff" stroke-width="1.5"/>
+  <text x="430" y="420" text-anchor="middle" font-size="11" fill="#bc8cff" font-weight="700">CarSpawner.cs</text>
+  <text x="430" y="438" text-anchor="middle" font-size="8.5" fill="#8b949e">Frame timer trigger</text>
+  <text x="430" y="452" text-anchor="middle" font-size="8.5" fill="#8b949e">SpawnFromPool("Car")</text>
+
+  <!-- Paths.cs -->
+  <rect x="580" y="400" width="220" height="64" rx="6"
+        fill="#1f2937" stroke="#bc8cff" stroke-width="1.5"/>
+  <text x="690" y="420" text-anchor="middle" font-size="11" fill="#bc8cff" font-weight="700">Paths.cs</text>
+  <text x="690" y="438" text-anchor="middle" font-size="8.5" fill="#8b949e">Vehicle FSM: Moving ↔ Stopped</text>
+  <text x="690" y="452" text-anchor="middle" font-size="8.5" fill="#8b949e">Waypoint movement + stop logic</text>
+
+  <!-- Arrows: spawning row -->
+  <line x1="280" y1="432" x2="328" y2="432"
+        stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arrow-gray)"/>
+  <line x1="530" y1="432" x2="578" y2="432"
+        stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arrow-gray)"/>
+
+  <!-- PathManager.cs -->
+  <rect x="240" y="516" width="360" height="64" rx="6"
+        fill="#1f2937" stroke="#58a6ff" stroke-width="1.5"/>
+  <text x="420" y="538" text-anchor="middle" font-size="11" fill="#58a6ff" font-weight="700">PathManager.cs</text>
+  <text x="420" y="554" text-anchor="middle" font-size="8.5" fill="#8b949e">Transform[6, 4] waypoint matrix</text>
+  <text x="420" y="568" text-anchor="middle" font-size="8.5" fill="#8b949e">6 paths × 4 waypoints  +  waitingCarsCount[ ]</text>
+
+  <!-- Arrows down to PathManager -->
+  <line x1="430" y1="464" x2="420" y2="516"
+        stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <line x1="690" y1="464" x2="580" y2="516"
+        stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+  <!-- Lane colliders also read PathManager — dashed line from Left Lane box -->
+  <line x1="210" y1="352" x2="270" y2="516"
+        stroke="#484f58" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-gray)"/>
+  <text x="220" y="440" font-size="8" fill="#484f58" transform="rotate(-70, 220, 440)">lane density</text>
+
+  <!-- Arrow: Input.txt → ReadInput -->
+  <line x1="610" y1="155" x2="610" y2="175"/>
+  <!-- vertical down from Input.txt -->
+  <line x1="185" y1="155" x2="185" y2="200"
+        stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+  <!-- Actually route: Input.txt bottom → down then left to ReadInput top -->
+  <!-- Re-draw as a path -->
+  <path d="M 610 122 L 610 152 L 185 152 L 185 200"
+        fill="none" stroke="#3fb950" stroke-width="1.5"
+        stroke-dasharray="5,3" marker-end="url(#arrow-green)"/>
+  <text x="380" y="147" text-anchor="middle" font-size="8.5" fill="#3fb950">polls on mtime change</text>
+
+</svg>
+</div>
+
+<div class="legend">
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#d29922;"></div>
+    External / Optimizer
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#3fb950;"></div>
+    IPC / File Interface
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#388bfd;"></div>
+    Signal Control
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#bc8cff;"></div>
+    Vehicle Spawning / Movement
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#58a6ff;"></div>
+    Routing Data
+  </div>
+</div>
+
+</body>
+</html>
