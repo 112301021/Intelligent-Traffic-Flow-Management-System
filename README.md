@@ -1,300 +1,254 @@
-# 🚦 Intelligent Traffic Flow Optimization System
+# Traffic Intersection Simulation with Adaptive Signal Control
 
-An AI-powered smart traffic management and adaptive signal optimization platform that combines computer vision, machine learning, embedded systems, and real-time traffic simulation to dynamically optimize urban traffic flow.
+A Unity/C# simulation of a 3-way road intersection designed as a validation testbed for adaptive traffic signal timing. An external optimizer process writes signal durations to a watched config file; the simulation reads and applies them in real-time — decoupling the optimization logic from the simulation environment.
 
----
-
-# 📌 Overview
-
-The **Intelligent Traffic Flow Optimization System** is a smart-city traffic engineering platform designed to reduce road congestion through adaptive traffic-light control using real-time traffic density estimation.
-
-The system integrates:
-
-* Computer vision-based vehicle detection
-* Real-time traffic-density estimation
-* YOLO-based object detection
-* Embedded camera systems
-* Unity traffic simulation
-* Adaptive signal optimization
-* IoT-style data workflows
-
-The platform demonstrates how AI and embedded systems can be integrated into intelligent transportation infrastructure for dynamic congestion management.
+![Unity](https://img.shields.io/badge/Unity-2021%2B-black?logo=unity)
+![Language](https://img.shields.io/badge/Language-C%23-purple?logo=csharp)
+![License](https://img.shields.io/badge/License-CC0%201.0-lightgrey)
+![Status](https://img.shields.io/badge/Status-Simulation%20Complete-green)
 
 ---
 
-# 🏗️ System Architecture
+## Overview
 
-## High-Level Workflow
+Fixed-time traffic signals are inefficient by design — they allocate green time equally regardless of actual lane demand. This simulation models a 3-way intersection where signal durations are dynamically injected from an external source, allowing any optimization strategy (density-based, ML-based, or manual) to drive signal timing without modifying the simulation itself.
 
-```text
-ESP32-CAM / CCTV
-        ↓
-Image Snapshot Acquisition
-        ↓
-Python ML Inference Pipeline
-        ↓
-YOLO Vehicle Detection
-        ↓
-Traffic Density Estimation
-        ↓
-Signal Timing Optimization
-        ↓
-Unity Traffic Simulation
-        ↓
-Adaptive Traffic-Light Control
+The architecture enforces a clean boundary: the simulation is a pure validator. The optimizer is external and replaceable.
+
+---
+
+## System Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    EXTERNAL LAYER                            │
+│                                                              │
+│   Python Optimizer / Manual Input / Any External Process     │
+│              │                                               │
+│              │  writes  wait_L - wait_R - wait_F (floats)   │
+│              ▼                                               │
+│          Input.txt  (flat config file)                       │
+└──────────────────────┬───────────────────────────────────────┘
+                       │  polls on last-modified timestamp
+┌──────────────────────▼───────────────────────────────────────┐
+│                    UNITY SIMULATION                          │
+│                                                              │
+│   ReadInput.cs ──▶ TrafficLightManager.cs                    │
+│   (file watcher)    (round-robin signal controller)          │
+│                            │                                 │
+│                            ▼                                 │
+│                     TrafficLight.cs                          │
+│                     (per-lane state: Red / Green)            │
+│                            │                                 │
+│              ┌─────────────┼──────────────┐                  │
+│              ▼             ▼              ▼                  │
+│           Left Lane    Right Lane    Front Lane              │
+│                                                              │
+│   ObjectPooler.cs ──▶ CarSpawner.cs ──▶ Paths.cs            │
+│   (pool queue)         (spawn gate)    (vehicle FSM)         │
+│                              │                               │
+│                              ▼                               │
+│                       PathManager.cs                         │
+│                    (Transform[6,4] waypoint matrix)          │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-# ⚙️ Core Features
+## Key Engineering Decisions
 
-## 🚗 Real-Time Vehicle Detection
+### 1. File-Based IPC (Decoupled Optimizer Interface)
 
-* YOLO-based object detection
-* Vehicle-density estimation
-* Multi-lane traffic analysis
-* Snapshot-based inference workflows
+`ReadInput.cs` polls `Input.txt` on `File.GetLastWriteTime()` change. Any external process — Python density estimator, reinforcement learning agent, or manual input — can drive signal timing by writing three float values. The simulation does not care what computed them.
 
-## 🧠 Intelligent Signal Optimization
+This separation means the optimizer and simulator can be developed, tested, and replaced independently.
 
-* Dynamic green-signal allocation
-* Adaptive congestion handling
-* Real-time wait-time computation
-* Lane-priority optimization
+### 2. Object Pooling (`ObjectPooler.cs`)
 
-## 🛰️ Embedded & IoT Integration
+Vehicles are pre-instantiated at scene load and recycled via a `Dictionary<string, Queue<GameObject>>`. Avoids repeated `Instantiate`/`Destroy` calls during simulation, eliminating GC spikes that would corrupt timing measurements.
 
-* ESP32-CAM image acquisition
-* Raspberry Pi-compatible workflow
-* Automated snapshot transfer pipeline
-* Lightweight edge-computing architecture
+```csharp
+// Pool structure
+Dictionary<string, Queue<GameObject>> poolDictionary;
 
-## 🎮 Simulation Infrastructure
+// Spawn: dequeue → reposition → activate
+// Despawn: deactivate → enqueue back
+```
 
-* Unity-based traffic simulation
-* C# traffic-control engine
-* Signal-state synchronization
-* Congestion behavior validation
+### 3. Waypoint Routing Matrix (`PathManager.cs`)
+
+All 6 intersection paths (L→F, L→R, R→F, R→L, F→L, F→R) are encoded as a `Transform[6, 4]` matrix — 6 origin-destination pairs × 4 waypoints. Vehicles index into this matrix by path number, keeping movement logic in `Paths.cs` clean and path data centralized.
+
+```
+Path 0: Left  → Front  (via L1 → L1_F2 junction → F2 → F3)
+Path 1: Left  → Right  (via L1 → R2 → R3)
+Path 2: Right → Front  (via R1 → R1_F2 junction → F2 → F3)
+Path 3: Right → Left   (via R1 → L2 → L3)
+Path 4: Front → Left   (via F1 → F1_L2 junction → L2 → L3)
+Path 5: Front → Right  (via F1 → F1_R2 junction → R2 → R3)
+```
+
+### 4. Lane Density Gating
+
+Trigger colliders at each lane entrance track `waitingCarsCount` per lane. The spawner checks this count before activating a vehicle — enforcing a configurable maximum queue depth per lane (`maxWaitingCarsPerLane`). This prevents infinite queue buildup and makes congestion observable.
+
+### 5. Vehicle State Machine (`Paths.cs`)
+
+Each vehicle runs a two-state FSM: `Moving` / `Stopped`. State transitions are driven by:
+- Proximity to a red-light stop line (`CheckForDistance`)
+- Collision trigger with a leading vehicle in the same lane (`AdjustSpeed`)
+- Junction override — vehicles inside the junction continue regardless of signal state
 
 ---
 
-# 🧩 Repository Structure
+## Repository Structure
 
-```text
-Intelligent-Traffic-Flow-Management-System/
+```
+Traffic-Intersection-Simulation/
 │
 ├── Assets/
-│   ├── Scripts/                    # Unity traffic simulation scripts
-│   ├── TrafficChecker/             # Traffic-density detection logic
-│   └── Colliders For Lanes/        # Lane-based collision handling
+│   └── Scripts/
+│       ├── CarSpawner.cs              # Timed vehicle generation
+│       ├── ObjectPooler.cs            # Pool management (Dictionary + Queue)
+│       ├── PathManager.cs             # Waypoint matrix (Transform[6,4])
+│       ├── Paths.cs                   # Per-vehicle FSM + movement
+│       ├── TrafficLight.cs            # Per-lane Red/Green state
+│       ├── TrafficLightManager.cs     # Round-robin signal controller
+│       ├── Traffic.cs                 # UI display (current green lane + timer)
+│       ├── ReadInput.cs               # File watcher for external timing input
+│       ├── Junction.cs                # Junction zone override logic
+│       ├── IPooledObject.cs           # Pool interface
+│       └── Colliders For Lanes/
+│           ├── Front.cs               # Front lane density counter
+│           ├── Left.cs                # Left lane density counter
+│           └── Right.cs               # Right lane density counter
 │
-├── TRAFFIC FLOW MANAGEMENT SYSTEM.docx
-├── Video-1.mp4
-├── Video-2.mp4
-├── Video-3.mp4
+├── config/
+│   └── Input.txt                      # Signal timing config (external interface)
+│
+├── docs/
+│   ├── architecture.md                # System architecture documentation
+│   └── diagrams/                      # Architecture diagrams
+│
 └── README.md
 ```
 
 ---
 
-# 🧠 Computer Vision Pipeline
+## Setup & Running
 
-The traffic optimization workflow uses computer vision and ML inference to estimate congestion levels.
+### Requirements
 
-## Workflow
+- Unity 2021.3 LTS or newer
+- .NET Standard 2.1 (included with Unity)
 
-1. ESP32-CAM captures traffic snapshots
-2. Images are transferred to the processing pipeline
-3. YOLO detects vehicles in each lane
-4. Vehicle count is converted into congestion metrics
-5. Signal duration is dynamically optimized
-6. Unity simulation updates traffic-light states
+### Step 1 — Open the Project
 
----
+```
+File → Open Project → select repository root
+```
 
-# 🎮 Unity Simulation Engine
+### Step 2 — Configure the Input File Path
 
-The project includes a Unity-based traffic simulation environment built in C#.
+Open `Assets/Scripts/ReadInput.cs` and update the filepath to point to `config/Input.txt` in your local repository:
 
-## Key Simulation Components
+```csharp
+// Replace this:
+private string filepath = "C:/Users/jake0/My files/.../Input.txt";
 
-### Traffic System
+// With your path:
+private string filepath = Application.dataPath + "/../config/Input.txt";
+```
 
-* Vehicle spawning
-* Lane movement
-* Traffic-light interaction
-* Collision handling
+### Step 3 — Set Initial Signal Timings
 
-### Signal Management
+Edit `config/Input.txt`:
 
-* Adaptive signal timing
-* Dynamic lane prioritization
-* Congestion-aware control logic
+```
+L-R-F
+3.0-3.0-3.0
+```
 
-### Scripts Included
+Format: `wait_Left - wait_Right - wait_Front` (float, seconds)
 
-```text
-CarSpawner.cs
-TrafficLight.cs
-TrafficLightManager.cs
-Traffic.cs
-PathManager.cs
-ReadInput.cs
-ObjectPooler.cs
+### Step 4 — Run
+
+Open the traffic scene in Unity and press Play. The simulation reads `Input.txt` on startup and on every file modification — change the values while running to see signal timing update live.
+
+### Step 5 — Drive with External Optimizer (Optional)
+
+Any script that writes to `Input.txt` will control signal timing:
+
+```python
+# Example: Python optimizer writing computed timings
+import time
+
+def write_timings(left, right, front, path="config/Input.txt"):
+    with open(path, "w") as f:
+        f.write("L-R-F\n")
+        f.write(f"{left}-{right}-{front}\n")
+
+# Example: bias toward the lane with most vehicles
+write_timings(left=5.0, right=2.0, front=3.0)
 ```
 
 ---
 
-# 🧪 Technologies Used
+## Signal Timing Interface
 
-## AI & Computer Vision
+The optimizer-simulation interface is a single flat file:
 
-* YOLO
-* TensorFlow
-* OpenCV
-* Python
-
-## Embedded & IoT
-
-* ESP32-CAM
-* Raspberry Pi
-* Snapshot streaming
-
-## Simulation
-
-* Unity
-* C#
-
-## Systems Engineering
-
-* Real-time processing
-* Adaptive control systems
-* Smart traffic infrastructure
-
----
-
-# 📂 Important Components
-
-## `TrafficLightManager.cs`
-
-Controls signal timing and adaptive traffic-light workflows.
-
-## `Traffic.cs`
-
-Handles traffic movement simulation.
-
-## `ReadInput.cs`
-
-Reads dynamically generated congestion metrics.
-
-## `CarSpawner.cs`
-
-Manages traffic generation within the simulation.
-
----
-
-# 🚀 Setup & Execution
-
-## Requirements
-
-* Unity Engine
-* Python 3.x
-* TensorFlow
-* OpenCV
-* ESP32-CAM module
-
----
-
-## Unity Setup
-
-1. Open project in Unity.
-2. Load the traffic simulation scene.
-3. Run the Unity environment.
-
----
-
-## ML Pipeline Setup
-
-Install dependencies:
-
-```bash
-pip install tensorflow opencv-python numpy
+```
+Line 1: L-R-F          (header — lane order)
+Line 2: 3.5-2.0-4.0    (green durations in seconds)
 ```
 
-Run the traffic inference pipeline:
-
-```bash
-python traffic_detection.py
-```
+`TrafficLightManager` reads these on file change via `ReadInput` and calls `SetDelay(laneIndex)` to update the round-robin cycle. The simulation does not validate or optimize these values — it executes them exactly. Optimization logic is entirely external.
 
 ---
 
-# 📊 Adaptive Signal Logic
+## Known Limitations
 
-The adaptive traffic-light system dynamically adjusts:
-
-* Green-light duration
-* Lane priority
-* Traffic wait time
-* Congestion balancing
-
-based on:
-
-* Vehicle count
-* Lane density
-* Real-time traffic conditions
+| Issue | Location | Impact |
+|---|---|---|
+| Hardcoded absolute file path | `ReadInput.cs:7` | Breaks on all machines except original dev | 
+| File polling (not event-driven) | `ReadInput.cs:Update()` | Minor overhead each frame |
+| Stub scripts with no implementation | `Left_TF.cs`, `Front_TF.cs` | Dead code, should be removed |
+| Active debug logs in production | `Right_TF.cs:Update()` | Console noise, minor perf |
+| No multi-intersection support | Architecture | Single junction only |
+| Round-robin only | `TrafficLightManager.cs` | No priority/demand-based scheduling |
 
 ---
 
-# 📈 Engineering Objectives
+## Future Work
 
-This project explores:
-
-* Intelligent transportation systems
-* Smart-city infrastructure
-* Real-time AI systems
-* Edge-computing workflows
-* Adaptive optimization systems
-* Embedded computer vision
-* Traffic engineering simulation
+- **Externalize config path** — use `Application.dataPath` or a Unity `ScriptableObject`
+- **Socket/pipe IPC** — replace file polling with a proper IPC channel for lower latency
+- **Priority scheduling** — replace round-robin with demand-weighted signal allocation
+- **Multi-intersection** — extend `PathManager` to support networked junction graphs
+- **Metrics export** — log per-lane queue depth and throughput to CSV for optimizer feedback
+- **Reinforcement learning loop** — feed simulation state back to Python optimizer for closed-loop training
 
 ---
 
-# 🔬 Research Inspiration
+## Team
 
-The project was inspired by challenges in:
+| Name | Contribution |
+|---|---|
+| Ajay Kumar Mallameeda | Traffic simulation architecture, Unity implementation |and traffic visualization |
+| Jake Mathew | Unity scripting, signal control system |
+| Hemanth | Path routing system | UI and traffic visualization |
+| Aravind K | Vehicle spawning and pooling |
 
-* Urban congestion management
-* Inefficient fixed-time traffic systems
-* Dynamic traffic optimization
-* Intelligent infrastructure automation
-
----
-
-# 🛠️ Future Improvements
-
-Potential future enhancements:
-
-* Live CCTV integration
-* Multi-intersection optimization
-* Cloud-hosted inference
-* Reinforcement learning-based control
-* Real-time analytics dashboard
-* Edge-device acceleration
-* Distributed traffic orchestration
 
 ---
 
-# 👨‍💻 Team
+## Repository Topics
 
-* Ajay Kumar Mallameeda
-* Jake Mathew
-* Hemanth
-* Aravind K
-* Ruthvi M
+`traffic-simulation` · `unity` · `csharp` · `adaptive-signal-control` · `object-pooling` · `waypoint-routing` · `traffic-engineering` · `simulation-testbed` · `optimization` · `game-engine`
 
 ---
 
-# 📜 License
+## License
 
-This project is intended for academic and research exploration purposes.
+CC0 1.0 Universal — Public Domain
