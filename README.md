@@ -243,9 +243,9 @@ Line 2: 3.5-2.0-4.0    (green durations in seconds)
 
 ---
 
-## Repository Topics
+<img width="1192" height="687" alt="image" src="https://github.com/user-attachments/assets/c8d04136-8126-42e5-88ea-4ca087dc9a50" />
+<img width="1040" height="786" alt="image" src="https://github.com/user-attachments/assets/d30fb13f-7509-449f-a88c-3aedab20150b" />
 
-`traffic-simulation` · `unity` · `csharp` · `adaptive-signal-control` · `object-pooling` · `waypoint-routing` · `traffic-engineering` · `simulation-testbed` · `optimization` · `game-engine`
 
 ---
 
