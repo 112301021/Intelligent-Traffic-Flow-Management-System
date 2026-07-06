@@ -2,10 +2,14 @@
 
 A Unity/C# simulation of a 3-way road intersection designed as a validation testbed for adaptive traffic signal timing. An external optimizer process writes signal durations to a watched config file; the simulation reads and applies them in real-time — decoupling the optimization logic from the simulation environment.
 
-![Unity](https://img.shields.io/badge/Unity-2021%2B-black?logo=unity)
-![Language](https://img.shields.io/badge/Language-C%23-purple?logo=csharp)
-![License](https://img.shields.io/badge/License-CC0%201.0-lightgrey)
-![Status](https://img.shields.io/badge/Status-Simulation%20Complete-green)
+![Status](https://img.shields.io/badge/Status-Active-059669?style=flat)
+![License](https://img.shields.io/badge/License-CC0--1.0-2563EB?style=flat)
+![Last Updated](https://img.shields.io/badge/Last%20Updated-2026--07-6B7280?style=flat)
+
+![C#](https://img.shields.io/badge/C%23-0D9488?style=flat&logo=csharp&logoColor=white)
+![Unity](https://img.shields.io/badge/Unity-FFFFFF?style=flat&logo=unity&logoColor=black)
+![Python](https://img.shields.io/badge/Python-0D9488?style=flat&logo=python&logoColor=white)
+![OpenCV](https://img.shields.io/badge/OpenCV-0D9488?style=flat&logo=opencv&logoColor=white)
 
 ---
 
@@ -135,6 +139,18 @@ Traffic-Intersection-Simulation/
 
 ---
 
+## Technology Stack
+
+| Technology | Purpose |
+|------------|---------|
+| C# | Unity scripting and simulation logic |
+| Unity 2021.3 LTS | 3D simulation environment |
+| Python | External optimizer (signal timing computation) |
+| OpenCV | Computer vision for traffic density estimation |
+| .NET Standard 2.1 | Cross-platform compatibility |
+
+---
+
 ## Setup & Running
 
 ### Requirements
@@ -243,12 +259,25 @@ Line 2: 3.5-2.0-4.0    (green durations in seconds)
 
 ---
 
-<img width="1192" height="687" alt="image" src="https://github.com/user-attachments/assets/c8d04136-8126-42e5-88ea-4ca087dc9a50" />
-<img width="1040" height="786" alt="image" src="https://github.com/user-attachments/assets/d30fb13f-7509-449f-a88c-3aedab20150b" />
-
+Screenshots of the simulation are available in the `docs/diagrams/` directory.
 
 ---
 
-## License
+## Lessons Learned
 
-CC0 1.0 Universal — Public Domain
+- **File-based IPC is simple but fragile** — The file-polling approach made the optimizer-simulation boundary trivially testable (any process writing to a file), but introduced per-frame I/O overhead and race conditions under high write frequency. A proper IPC channel (named pipe, socket) would be more robust.
+- **Decoupling optimization from simulation was the right call** — Being able to replace the signal timing optimizer without touching a line of Unity code accelerated iteration significantly. The `Input.txt` contract forced a clean interface that both sides could develop against independently.
+- **Object pooling eliminated GC spikes** — Pre-instantiating vehicles and recycling them via `Dictionary<string, Queue<GameObject>>` removed `Instantiate`/`Destroy` calls from the hot path, keeping frame times stable during simulation. This matters for any real-time system.
+- **Documenting limitations honestly builds trust** — Publishing known issues (hardcoded paths, dead code, single intersection) in the README made the project's scope clear and gave collaborators immediate starting points for improvement.
+
+---
+
+## License & Author
+
+**License:** CC0 1.0 Universal — Public Domain. See the [LICENSE](./LICENSE) file for details.
+
+**Author:** [Ajaykumar Mallameeda](https://github.com/Ajaykumar-Mallameeda) · Indian Institute of Technology Palakkad
+
+---
+
+*Built at IIT Palakkad as part of a continuous learning journey in AI and Backend Engineering.*
