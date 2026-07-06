@@ -70,3 +70,12 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# Large binary files (should not be committed to git)
+*.mp4
+*.mov
+*.avi
+*.docx
+*.pptx
+*.htm
+*.log
